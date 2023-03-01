@@ -7,6 +7,7 @@ fn main() {
 
     rerun_if_env_changed("OUT_DIR");
     rerun_if_env_changed("CMAKE_PREFIX_PATH");
+    rerun_if_env_changed("ROS_PACKAGE_PATH");
     rerun_if_env_changed("ROSRUST_MSG_PATH");
 
     let cmake_paths = env::var("CMAKE_PREFIX_PATH")
@@ -19,6 +20,11 @@ fn main() {
         .split(':')
         .filter_map(append_src_folder)
         .collect::<Vec<String>>();
+    let ros_package_paths = env::var("ROS_PACKAGE_PATH")
+        .unwrap_or_default()
+        .split(':')
+        .map(String::from)
+        .collect::<Vec<String>>();
     let extra_paths = env::var("ROSRUST_MSG_PATH")
         .unwrap_or_default()
         .split(':')
@@ -27,6 +33,7 @@ fn main() {
     let paths = cmake_paths
         .iter()
         .chain(cmake_alt_paths.iter())
+        .chain(ros_package_paths.iter())
         .chain(extra_paths.iter())
         .collect::<Vec<_>>();
     for path in &paths {
@@ -50,6 +57,12 @@ fn main() {
         .map(|(pkg, msg)| format!("(\"{}\",\"{}\")", pkg, msg))
         .collect::<Vec<String>>()
         .join(",");
+
+    // Panic on an empty message list: there is no use for this, and it avoids
+    // a cryptic error in the proc macro invocation later on
+    if package_names.is_empty() {
+        panic!("empty package_names: are any of CMAKE_PREFIX_PATH and ROSRUST_MSG_PATH defined? is /opt/ros/<VERSION>/env sourced?");
+    }
 
     let file_content = format!(
         r#"
